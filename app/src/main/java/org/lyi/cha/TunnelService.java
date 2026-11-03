@@ -202,9 +202,17 @@ public class TunnelService extends Service {
             return;
         }
 
+        // 兼容旧版本保存的数据：含下划线、IP 地址或 URL 形式的主机名在这里统一规范化/拦截
+        String host = HostnameUtil.normalize(t.hostname);
+        if (host == null) {
+            appendLog(t.id, "[错误] 主机名无效或为 IP 地址（cloudflared 不支持）：" + t.hostname);
+            notifyChanged(t.id);
+            return;
+        }
+
         List<String> cmd = Arrays.asList(
                 bin.getAbsolutePath(), "access", "tcp",
-                "--hostname", t.hostname,
+                "--hostname", host,
                 "--url", t.localAddress());
         appendLog(t.id, "$ " + TextUtils.join(" ", cmd));
 

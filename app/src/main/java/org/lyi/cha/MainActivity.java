@@ -35,18 +35,12 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity implements TunnelAdapter.Callbacks {
 
     private static final int MENU_EDIT = 1, MENU_LOGS = 2, MENU_COPY = 3, MENU_DELETE = 4;
-
-    /** 至少两段、仅含字母数字/下划线/连字符的主机名；排除端口、路径、空白等 */
-    private static final Pattern HOSTNAME = Pattern.compile(
-            "[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)+");
 
     private TunnelStore store;
     private CloudflaredManager mgr;
@@ -213,15 +207,15 @@ public class MainActivity extends AppCompatActivity implements TunnelAdapter.Cal
             tilHost.setError(null);
             tilPort.setError(null);
 
-            String lower = host.toLowerCase(Locale.ROOT);
-            if (lower.startsWith("https://")) host = host.substring(8);
-            else if (lower.startsWith("http://")) host = host.substring(7);
-            while (host.endsWith("/")) host = host.substring(0, host.length() - 1);
-
+            String normalized = HostnameUtil.normalize(host);
             boolean ok = true;
-            if (!HOSTNAME.matcher(host).matches()) {
-                tilHost.setError("请输入有效的主机名，例如 ssh.example.com");
+            if (normalized == null) {
+                tilHost.setError(HostnameUtil.isIpAddress(host)
+                        ? "cloudflared 不支持 IP 地址，请输入域名，例如 ssh.example.com"
+                        : "请输入有效的域名，例如 ssh.example.com");
                 ok = false;
+            } else {
+                host = normalized;
             }
             int port = -1;
             try {
