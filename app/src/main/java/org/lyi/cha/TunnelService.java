@@ -53,6 +53,8 @@ public class TunnelService extends Service {
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private PowerManager.WakeLock wakeLock;
+    /** 服务处于前台（通知有效）期间为 true；停止后禁止再发布通知，避免残留通知 */
+    private volatile boolean active;
 
     // ------------------------------------------------------------ 静态 API（供 Activity 调用）
 
@@ -95,6 +97,7 @@ public class TunnelService extends Service {
     public void onCreate() {
         super.onCreate();
         createChannel();
+        active = true;
         startForeground(NOTIF_ID, buildNotification());
         PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
         if (pm != null) {
@@ -123,7 +126,8 @@ public class TunnelService extends Service {
                     break;
             }
         }
-        updateNotification();
+        active = true;
+        startForeground(NOTIF_ID, buildNotification());
         stopIfIdle();
         return START_STICKY;
     }
@@ -136,6 +140,7 @@ public class TunnelService extends Service {
 
     @Override
     public void onDestroy() {
+        active = false;
         for (Map.Entry<String, Process> e : processes.entrySet()) {
             e.getValue().destroy();
             appendLog(e.getKey(), "[服务销毁] 隧道已停止");
@@ -189,6 +194,7 @@ public class TunnelService extends Service {
                 processes.remove(t.id, p);
                 notifyChanged(t.id);
                 main.post(() -> {
+                    if (!active) return;
                     updateNotification();
                     stopIfIdle();
                 });
@@ -219,6 +225,7 @@ public class TunnelService extends Service {
 
     private void stopIfIdle() {
         if (runningCount() == 0) {
+            active = false;
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
         }
@@ -285,6 +292,7 @@ public class TunnelService extends Service {
     }
 
     private void updateNotification() {
+        if (!active) return;
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (nm != null) nm.notify(NOTIF_ID, buildNotification());
     }
