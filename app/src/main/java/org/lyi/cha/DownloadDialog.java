@@ -9,6 +9,8 @@ import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleOwner;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.progressindicator.LinearProgressIndicator;
@@ -22,6 +24,13 @@ public class DownloadDialog {
         void onSuccess(String version);
 
         void onFailure(Exception e);
+
+        /**
+         * 下载成功后无论 Activity 是否还在（例如因深色模式切换被重建）都会在主线程调用，
+         * 只应放与界面无关的收尾逻辑，如设置当前版本。
+         */
+        default void onCompleted(String version) {
+        }
     }
 
     /**
@@ -46,6 +55,13 @@ public class DownloadDialog {
                 .setCancelable(false)
                 .show();
 
+        // Activity 被重建/销毁时同步关闭对话框，避免 WindowLeaked
+        if (act instanceof LifecycleOwner) {
+            ((LifecycleOwner) act).getLifecycle().addObserver((androidx.lifecycle.LifecycleEventObserver) (src, event) -> {
+                if (event == Lifecycle.Event.ON_DESTROY && dlg.isShowing()) dlg.dismiss();
+            });
+        }
+
         Handler main = new Handler(Looper.getMainLooper());
         Thread th = new Thread(() -> {
             try {
@@ -68,6 +84,7 @@ public class DownloadDialog {
                     });
                 });
                 main.post(() -> {
+                    cb.onCompleted(ver);
                     if (gone(act)) return;
                     dismissSafely(act, dlg);
                     cb.onSuccess(ver);

@@ -125,8 +125,13 @@ public class MainActivity extends AppCompatActivity implements TunnelAdapter.Cal
     private void startDownload(@Nullable String version) {
         DownloadDialog.start(this, mgr, version, new DownloadDialog.Callback() {
             @Override
-            public void onSuccess(String v) {
+            public void onCompleted(String v) {
+                // Activity 即使已被重建也要切换到刚下载的版本
                 mgr.setActiveVersion(v);
+            }
+
+            @Override
+            public void onSuccess(String v) {
                 String msg = "cloudflared " + v + " 已就绪";
                 if (TunnelService.runningCount() > 0) msg += "，重新启动隧道后生效";
                 snack(msg);
