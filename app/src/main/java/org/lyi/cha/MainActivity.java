@@ -221,8 +221,9 @@ public class MainActivity extends AppCompatActivity implements TunnelAdapter.Cal
                 port = Integer.parseInt(portStr);
             } catch (NumberFormatException ignored) {
             }
-            if (port < 1 || port > 65535) {
-                tilPort.setError("端口范围 1 - 65535");
+            if (port < 1024 || port > 65535) {
+                // 非 root 的 Android 应用无法绑定 1024 以下的特权端口
+                tilPort.setError("端口范围 1024 - 65535（低端口需要 root）");
                 ok = false;
             } else {
                 for (Tunnel o : tunnels) {
