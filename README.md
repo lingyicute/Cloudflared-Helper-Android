@@ -25,11 +25,12 @@ Android 10 及以上对 `targetSdk >= 29` 的应用施加了 W^X 限制，禁止
 gradle assembleDebug      # 或使用 Android Studio 打开项目
 ```
 
-GitHub Actions（`.github/workflows/build.yml`）会在 push / PR / 手动触发时构建 Debug 与
-Release APK 并上传为 Artifacts；推送 `v*` 标签时自动发布 Release。
+GitHub Actions（`.github/workflows/build.yml`）会在 push 到 `main` 或手动触发时构建 Release APK，
+上传为 Artifact，并发布（覆盖）名为 `nightly` 的预发布版本。
 
-如需对 Release 签名，在仓库 Secrets 中配置：
+如需使用自己的密钥签名，在仓库 Secrets 中配置：
 `KEYSTORE_BASE64`（keystore 文件 base64）、`KEYSTORE_PASSWORD`、`KEY_ALIAS`、`KEY_PASSWORD`。
+未配置时 Release APK 会使用 debug 密钥签名，以保证可以直接安装。
 
 ## 目录结构
 
