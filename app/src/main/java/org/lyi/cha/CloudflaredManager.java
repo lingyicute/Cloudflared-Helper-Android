@@ -185,6 +185,9 @@ public class CloudflaredManager {
         HttpURLConnection c = open(url, true);
         try {
             int code = c.getResponseCode();
+            if (code == 403 || code == 429) {
+                throw new IOException("GitHub API 请求过于频繁（HTTP " + code + "），请稍后再试");
+            }
             if (code != 200) throw new IOException("GitHub API 返回 HTTP " + code);
             try (InputStream in = c.getInputStream()) {
                 ByteArrayOutputStream bo = new ByteArrayOutputStream();
