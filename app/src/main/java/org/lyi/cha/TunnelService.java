@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -48,6 +49,10 @@ public class TunnelService extends Service {
     }
 
     private static final Map<String, Process> processes = new ConcurrentHashMap<>();
+    /** 已被用户停止、但仍在优雅退出宽限期内的旧进程；它们可能仍占用着本地端口 */
+    private static final Map<String, Process> stopping = new ConcurrentHashMap<>();
+    /** 正在等待旧进程退出后再启动的隧道 */
+    private static final Set<String> pendingStarts = ConcurrentHashMap.newKeySet();
     private static final Map<String, ArrayDeque<String>> logs = new ConcurrentHashMap<>();
     private static final Map<String, String> descriptions = new ConcurrentHashMap<>();
     private static volatile Listener listener;
@@ -67,7 +72,7 @@ public class TunnelService extends Service {
 
     public static boolean isRunning(String id) {
         Process p = processes.get(id);
-        return p != null && p.isAlive();
+        return (p != null && p.isAlive()) || pendingStarts.contains(id);
     }
 
     public static int runningCount() {
@@ -145,6 +150,7 @@ public class TunnelService extends Service {
     @Override
     public void onDestroy() {
         active = false;
+        pendingStarts.clear();
         for (Map.Entry<String, Process> e : processes.entrySet()) {
             terminate(e.getValue());
             appendLog(e.getKey(), "[服务销毁] 隧道已停止");
@@ -157,8 +163,36 @@ public class TunnelService extends Service {
     // ------------------------------------------------------------ 进程管理
 
     private void startTunnel(Tunnel t) {
-        if (isRunning(t.id)) return;
-        logs.put(t.id, new ArrayDeque<>());
+        startTunnel(t, 0);
+    }
+
+    private void startTunnel(Tunnel t, int attempt) {
+        Process current = processes.get(t.id);
+        if (current != null && current.isAlive()) return;
+        if (attempt == 0 && !pendingStarts.add(t.id)) return;
+
+        // 刚停止的旧进程还没退出时，本地端口可能尚未释放，且旧进程的读取线程
+        // 还会往日志里写内容。等它彻底结束后再启动（最长约 10 秒）。
+        if (stopping.containsKey(t.id)) {
+            if (attempt >= 50) {
+                pendingStarts.remove(t.id);
+                appendLog(t.id, "[错误] 旧的 cloudflared 进程迟迟未退出，已取消启动");
+                notifyChanged(t.id);
+                stopIfIdle();
+                return;
+            }
+            if (attempt == 0) notifyChanged(t.id);
+            main.postDelayed(() -> {
+                if (pendingStarts.contains(t.id)) startTunnel(t, attempt + 1);
+            }, 200);
+            return;
+        }
+        if (!pendingStarts.remove(t.id) && attempt > 0) return; // 等待期间被用户取消
+
+        ArrayDeque<String> q = logs.computeIfAbsent(t.id, k -> new ArrayDeque<>());
+        synchronized (q) {
+            q.clear();
+        }
         descriptions.put(t.id, t.name + "  →  " + t.localAddress());
 
         File bin = new CloudflaredManager(this).getActiveBinary();
@@ -196,6 +230,7 @@ public class TunnelService extends Service {
                 }
                 appendLog(t.id, "[退出] cloudflared 进程已结束，退出码 " + code);
                 processes.remove(t.id, p);
+                stopping.remove(t.id, p);
                 notifyChanged(t.id);
                 main.post(() -> {
                     if (!active) return;
@@ -214,8 +249,10 @@ public class TunnelService extends Service {
 
     private void stopTunnel(String id) {
         if (id == null) return;
+        pendingStarts.remove(id);
         Process p = processes.remove(id);
         if (p != null) {
+            stopping.put(id, p);
             terminate(p);
             appendLog(id, "[停止] 用户已停止隧道");
         }
@@ -242,7 +279,7 @@ public class TunnelService extends Service {
     }
 
     private void stopIfIdle() {
-        if (runningCount() != 0) return;
+        if (runningCount() != 0 || !pendingStarts.isEmpty()) return;
         // 带 startId 停止：若期间又收到了新的启动请求则不会停止，避免丢失该请求
         if (stopSelfResult(lastStartId)) {
             active = false;
