@@ -302,17 +302,43 @@ public class CloudflaredManager {
 
     // ---------------------------------------------------------------- 版本比较
 
-    /** 比较形如 2024.12.2 的版本号，a>b 返回正数 */
+    /**
+     * 比较形如 2024.12.2 / v2024.12.2 的版本号，a>b 返回正数。
+     * 忽略前导 v 与 + 之后的构建元数据；数字段相同时，带预发布后缀（-rc1）的版本小于正式版。
+     */
     public static int compareVersions(String a, String b) {
-        String[] pa = a.split("\\.");
-        String[] pb = b.split("\\.");
+        String va = normalizeVersion(a), vb = normalizeVersion(b);
+        String pa0 = preRelease(va), pb0 = preRelease(vb);
+        String[] pa = core(va).split("\\.");
+        String[] pb = core(vb).split("\\.");
         int n = Math.max(pa.length, pb.length);
         for (int i = 0; i < n; i++) {
             long x = i < pa.length ? num(pa[i]) : 0;
             long y = i < pb.length ? num(pb[i]) : 0;
             if (x != y) return x < y ? -1 : 1;
         }
-        return 0;
+        if (pa0.isEmpty() && pb0.isEmpty()) return 0;
+        if (pa0.isEmpty()) return 1;
+        if (pb0.isEmpty()) return -1;
+        int c = pa0.compareTo(pb0);
+        return c < 0 ? -1 : (c > 0 ? 1 : 0);
+    }
+
+    private static String normalizeVersion(String s) {
+        String v = s == null ? "" : s.trim();
+        if (!v.isEmpty() && (v.charAt(0) == 'v' || v.charAt(0) == 'V')) v = v.substring(1);
+        int plus = v.indexOf('+');
+        return plus >= 0 ? v.substring(0, plus) : v;
+    }
+
+    private static String core(String v) {
+        int i = v.indexOf('-');
+        return i >= 0 ? v.substring(0, i) : v;
+    }
+
+    private static String preRelease(String v) {
+        int i = v.indexOf('-');
+        return i >= 0 ? v.substring(i + 1) : "";
     }
 
     private static long num(String s) {
