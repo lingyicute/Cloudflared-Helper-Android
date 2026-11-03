@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 前台服务：托管所有正在运行的 cloudflared 子进程，
@@ -142,7 +143,7 @@ public class TunnelService extends Service {
     public void onDestroy() {
         active = false;
         for (Map.Entry<String, Process> e : processes.entrySet()) {
-            e.getValue().destroy();
+            terminate(e.getValue());
             appendLog(e.getKey(), "[服务销毁] 隧道已停止");
         }
         processes.clear();
@@ -212,10 +213,24 @@ public class TunnelService extends Service {
         if (id == null) return;
         Process p = processes.remove(id);
         if (p != null) {
-            p.destroy();
+            terminate(p);
             appendLog(id, "[停止] 用户已停止隧道");
         }
         notifyChanged(id);
+    }
+
+    /** 先发 SIGTERM，3 秒内未退出则强制结束，避免残留进程继续占用本地端口 */
+    private static void terminate(final Process p) {
+        p.destroy();
+        Thread t = new Thread(() -> {
+            try {
+                if (!p.waitFor(3, TimeUnit.SECONDS)) p.destroyForcibly();
+            } catch (InterruptedException e) {
+                p.destroyForcibly();
+            }
+        }, "cf-kill");
+        t.setDaemon(true);
+        t.start();
     }
 
     private void stopAll() {
