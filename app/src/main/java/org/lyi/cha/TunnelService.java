@@ -56,6 +56,8 @@ public class TunnelService extends Service {
     private PowerManager.WakeLock wakeLock;
     /** 服务处于前台（通知有效）期间为 true；停止后禁止再发布通知，避免残留通知 */
     private volatile boolean active;
+    /** 最近一次 onStartCommand 的 startId，仅在主线程访问 */
+    private int lastStartId;
 
     // ------------------------------------------------------------ 静态 API（供 Activity 调用）
 
@@ -110,6 +112,7 @@ public class TunnelService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        lastStartId = startId;
         String action = intent != null ? intent.getAction() : null;
         if (action != null) {
             String id = intent.getStringExtra(EXTRA_ID);
@@ -239,10 +242,11 @@ public class TunnelService extends Service {
     }
 
     private void stopIfIdle() {
-        if (runningCount() == 0) {
+        if (runningCount() != 0) return;
+        // 带 startId 停止：若期间又收到了新的启动请求则不会停止，避免丢失该请求
+        if (stopSelfResult(lastStartId)) {
             active = false;
             stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
         }
     }
 
