@@ -19,7 +19,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 负责 cloudflared 二进制的下载、存放、版本切换，以及通过 GitHub API 查询版本。
@@ -34,6 +36,9 @@ public class CloudflaredManager {
     private static final String API_RELEASES = "https://api.github.com/repos/cloudflare/cloudflared/releases?per_page=30";
     private static final String DOWNLOAD_URL = "https://github.com/cloudflare/cloudflared/releases/download/%s/cloudflared-linux-%s";
     private static final String UA = "CFTunnel-Android/1.0 (+https://github.com/cloudflare/cloudflared)";
+
+    /** 正在下载的版本，防止同一版本并发写入同一个 .part 文件 */
+    private static final Set<String> DOWNLOADING = Collections.synchronizedSet(new HashSet<>());
 
     public interface ProgressListener {
         void onProgress(long downloaded, long total, double bytesPerSecond);
@@ -226,6 +231,15 @@ public class CloudflaredManager {
      * 通过 listener 回调已下载字节数、总字节数（未知为 -1）与当前速度。
      */
     public void download(String version, ProgressListener listener) throws IOException {
+        if (!DOWNLOADING.add(version)) throw new IOException("版本 " + version + " 正在下载中");
+        try {
+            doDownload(version, listener);
+        } finally {
+            DOWNLOADING.remove(version);
+        }
+    }
+
+    private void doDownload(String version, ProgressListener listener) throws IOException {
         String url = String.format(DOWNLOAD_URL, version, archName());
         File dir = versionDir(version);
         if (!dir.exists() && !dir.mkdirs()) throw new IOException("无法创建目录 " + dir);
