@@ -68,11 +68,13 @@ public class DownloadDialog {
                     });
                 });
                 main.post(() -> {
+                    if (gone(act)) return;
                     dismissSafely(act, dlg);
                     cb.onSuccess(ver);
                 });
             } catch (Exception e) {
                 main.post(() -> {
+                    if (gone(act)) return;
                     dismissSafely(act, dlg);
                     cb.onFailure(e);
                 });
@@ -82,8 +84,13 @@ public class DownloadDialog {
         th.start();
     }
 
+    /** Activity 已销毁（如旋转屏幕）时不能再弹对话框，否则会抛 BadTokenException */
+    private static boolean gone(Activity act) {
+        return act.isFinishing() || act.isDestroyed();
+    }
+
     private static void dismissSafely(Activity act, AlertDialog dlg) {
-        if (!act.isFinishing() && !act.isDestroyed() && dlg.isShowing()) dlg.dismiss();
+        if (!gone(act) && dlg.isShowing()) dlg.dismiss();
     }
 
     public static String fmt(long bytes) {
