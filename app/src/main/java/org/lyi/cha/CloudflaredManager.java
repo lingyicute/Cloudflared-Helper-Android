@@ -316,10 +316,12 @@ public class CloudflaredManager {
     }
 
     private static long num(String s) {
-        String d = s.replaceAll("[^0-9]", "");
-        if (d.isEmpty()) return 0;
+        // 只取开头的数字段，避免 "2-rc1" 被误读为 21
+        int end = 0;
+        while (end < s.length() && Character.isDigit(s.charAt(end))) end++;
+        if (end == 0) return 0;
         try {
-            return Long.parseLong(d);
+            return Long.parseLong(s.substring(0, end));
         } catch (NumberFormatException e) {
             return 0;
         }
