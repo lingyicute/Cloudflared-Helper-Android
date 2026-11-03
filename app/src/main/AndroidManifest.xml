@@ -18,6 +18,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="true"
             android:launchMode="singleTop">
             <intent-filter>
@@ -28,6 +29,7 @@
 
         <activity
             android:name=".VersionActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:exported="false"
             android:parentActivityName=".MainActivity" />
 
