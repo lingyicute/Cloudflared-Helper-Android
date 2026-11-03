@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build APK
@@ -41,6 +45,15 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
           echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      # 无自有 keystore 时 AGP 会在每台 runner 上新建 debug 密钥，
+      # 导致相邻 nightly 签名不同、无法覆盖安装；缓存它以保持签名稳定
+      - name: Restore debug keystore (when no release keystore)
+        if: env.KEYSTORE_BASE64 == ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: debug-keystore-v1
 
       - name: Build release APK
         run: gradle assembleRelease --no-daemon --stacktrace

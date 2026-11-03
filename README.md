@@ -31,6 +31,7 @@ GitHub Actions（`.github/workflows/build.yml`）会在 push 到 `main` 或手�
 如需使用自己的密钥签名，在仓库 Secrets 中配置：
 `KEYSTORE_BASE64`（keystore 文件 base64）、`KEYSTORE_PASSWORD`、`KEY_ALIAS`、`KEY_PASSWORD`。
 未配置时 Release APK 会使用 debug 密钥签名，以保证可以直接安装。
+CI 会缓存该 debug 密钥以保持各次 nightly 签名一致（缓存被清理后签名会变化，需先卸载旧版）。
 
 ## 目录结构
 
