@@ -34,6 +34,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (System.getenv("KEYSTORE_FILE") != null && file(System.getenv("KEYSTORE_FILE")).exists()) {
                 signingConfig signingConfigs.release
+            } else {
+                // 未提供 keystore 时回退到 debug 签名，否则产出的 APK 未签名、无法安装
+                signingConfig signingConfigs.debug
             }
         }
         debug {
