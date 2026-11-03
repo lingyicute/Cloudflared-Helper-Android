@@ -251,11 +251,7 @@ public class TunnelService extends Service {
     }
 
     private static void appendLog(String id, String line) {
-        ArrayDeque<String> q = logs.get(id);
-        if (q == null) {
-            q = new ArrayDeque<>();
-            logs.put(id, q);
-        }
+        ArrayDeque<String> q = logs.computeIfAbsent(id, k -> new ArrayDeque<>());
         synchronized (q) {
             q.addLast(line);
             while (q.size() > MAX_LOG_LINES) q.pollFirst();
