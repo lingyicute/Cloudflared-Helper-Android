@@ -273,6 +273,9 @@ public class CloudflaredManager {
                     }
                 }
                 out.flush();
+                if (total > 0 && downloaded != total) {
+                    throw new IOException("下载不完整（" + downloaded + " / " + total + " 字节），请重试");
+                }
                 if (listener != null) listener.onProgress(downloaded, total, speed);
             }
         } catch (IOException e) {
